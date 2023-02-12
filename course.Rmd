@@ -1,0 +1,70 @@
+---
+title: "Practical Machine Learning - Prediction Assignment"
+author: "Maksym Hudymenko"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Libraries
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret); library(ggplot2); library(ggcorrplot); library(randomForest);
+```
+
+# Getting and checking data
+```{r}
+setwd("C:/Users/USER/Desktop/Coursera")
+train <- read.csv("pml-training.csv")
+test <- read.csv("pml-testing.csv")
+head(train[, 1:5])
+head(test[, 1:5])
+dim(train); dim(test)
+```
+
+# Clearing data (near zero values, not "classe" variable, NA)
+```{r}
+nzv <- nearZeroVar(train)
+train <- train[, -nzv]
+test <- test[, -nzv]
+
+clear_columns <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp")
+train <- train[,!names(train) %in% clear_columns]
+test <- test[,!names(test) %in% clear_columns]
+
+col_cond <- colSums(is.na(train)) == 0
+train <- train[, col_cond]
+test <- test[, col_cond]
+dim(train); dim(test)
+```
+### 19622 observations and 54 columns for the train set, 20 observations and 54 columns for the test set.
+
+# Splitting into train and validation sets
+```{r}
+train_old <- train
+inTrain <- createDataPartition(y=train_old$classe, p=0.80, list=FALSE)
+train <- train_old[inTrain,]
+validate <- train_old[-inTrain,]
+dim(train)
+dim(validate)
+```
+
+# Cross-validation (use K-fold (10) method) and use model on data
+```{r}
+CVML <- trainControl(method = "cv", number = 10)
+ModelFinal <- train(classe ~ ., data = train, preProcess=c("center", "scale"), method = "rf", trControl = CVML)
+ModelFinal
+```
+
+# Prediction
+```{r}
+predictionRF <- predict(ModelFinal, validate)
+conf_matrix <- confusionMatrix(
+  as.factor(validate$classe), 
+  as.factor(predictionRF))
+conf_matrix
+
+Out_Sample_Error <- 1 - as.numeric(conf_matrix$overall[1])
+Out_Sample_Error
+
+predict(ModelFinal, test[, -54])
+```
